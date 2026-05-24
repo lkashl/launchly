@@ -1,4 +1,8 @@
 const { app, BrowserWindow, BrowserView, ipcMain, Menu, globalShortcut } = require('electron');
+const { fadeSwitch } = require('./util/animate');
+const { IPCSubscriptions } = require('./util/ipcHandler');
+const { updateViewBounds, toggleCurrentWebviewDevTools } = require('./util/view');
+
 const path = require('path');
 const fs = require('fs');
 
@@ -17,6 +21,22 @@ let webviewIntervals = new Map(); // Store interval IDs for cleanup
 let currentWebviewId = null;
 let uiTopMargin = 18; // Border offset
 let isFullscreen = false; // Track fullscreen state
+
+// Create context object to pass to util functions
+const context = {
+    get mainWindow() { return mainWindow; },
+    set mainWindow(value) { mainWindow = value; },
+    get webviews() { return webviews; },
+    get webviewIntervals() { return webviewIntervals; },
+    get currentWebviewId() { return currentWebviewId; },
+    set currentWebviewId(value) { currentWebviewId = value; },
+    get uiTopMargin() { return uiTopMargin; },
+    set uiTopMargin(value) { uiTopMargin = value; },
+    get isFullscreen() { return isFullscreen; },
+    set isFullscreen(value) { isFullscreen = value; },
+    createView,
+    animateAppSwitch: fadeSwitch
+};
 
 // Load site mods dynamically
 const siteMods = new Map();
@@ -48,27 +68,6 @@ function loadSiteMods() {
 // Load mods on startup
 loadSiteMods();
 
-function updateViewBounds() {
-    if (!mainWindow || !currentWebviewId) {
-        return;
-    }
-
-    const view = webviews.get(currentWebviewId);
-    if (!view) {
-        return;
-    }
-
-    const bounds = mainWindow.getContentBounds();
-    const sidebarWidth = isFullscreen ? 0 : 65; // No sidebar in fullscreen
-
-    view.setBounds({
-        x: sidebarWidth,
-        y: 0,
-        width: Math.max(0, bounds.width - sidebarWidth),
-        height: bounds.height,
-    });
-}
-
 function createView(url, appId) {
     // Get mod for this app to check if preload is needed
     const mod = siteMods.get(appId);
@@ -81,13 +80,8 @@ function createView(url, appId) {
         sandbox: false, // Changed to false to allow persistent storage
         nodeIntegration: false,
         partition: `persist:${appId}`, // Each app gets its own persistent partition
-        webgl: true, // Enable WebGL for YouTube and other sites
-        plugins: true, // Enable plugins
+        plugins: false, // Enable plugins
         webSecurity: true, // Keep web security enabled
-        allowRunningInsecureContent: false,
-        experimentalFeatures: true, // Enable experimental web platform features
-        enableRemoteModule: false,
-        backgroundThrottling: false, // Don't throttle background pages
     };
 
     // Only add preload if not YouTube (YouTube seems to have issues with the preload)
@@ -97,10 +91,7 @@ function createView(url, appId) {
     }
 
     // Add additional preload if the mod specifies it needs one
-    if (mod && mod.preload) {
-        // Note: Can't have multiple preloads, so mod preloads should also include fullscreen detection
-        webPreferences.preload = path.join(__dirname, mod.preload);
-    }
+    if (mod && mod.preload) webPreferences.preload = path.join(__dirname, mod.preload);
 
     const view = new BrowserView({
         webPreferences: webPreferences,
@@ -112,11 +103,9 @@ function createView(url, appId) {
 
     const injectMods = () => {
         if (!mod) return;
-
+        if (view.webContents.isDestroyed()) return;
         // Inject CSS if present
-        if (mod.css) {
-            view.webContents.insertCSS(mod.css).catch(() => { });
-        }
+        if (mod.css) view.webContents.insertCSS(mod.css).catch(() => { });
 
         // Inject script if present
         if (mod.getScriptString) {
@@ -134,29 +123,12 @@ function createView(url, appId) {
     // Reduced frequency for better performance
     let intervalId = null;
     if (mod) {
-        view.webContents.on('did-frame-finish-load', () => {
-            if (!view.webContents.isDestroyed()) {
-                injectMods();
-            }
-        });
-        view.webContents.on('dom-ready', () => {
-            if (!view.webContents.isDestroyed()) {
-                injectMods();
-            }
-        });
-        view.webContents.on('did-navigate', () => {
-            if (!view.webContents.isDestroyed()) {
-                injectMods();
-            }
-        });
+        view.webContents.on('did-frame-finish-load', () => injectMods());
+        view.webContents.on('dom-ready', () => injectMods());
+        view.webContents.on('did-navigate', () => injectMods());
 
-        // Optional: Less frequent interval as fallback (every 5 seconds instead of 1)
-        // Comment out if not needed
-        intervalId = setInterval(() => {
-            if (!view.webContents.isDestroyed()) {
-                injectMods();
-            }
-        }, 5000);
+        // Keep injecting afterwards - ideally this should not be necessary
+        // intervalId = setInterval(injectMods, 5000);
     }
 
     view.webContents.on('context-menu', (event, params) => {
@@ -164,10 +136,6 @@ function createView(url, appId) {
             {
                 label: 'Inspect Element',
                 click: () => view.webContents.inspectElement(params.x, params.y),
-            },
-            {
-                label: 'Toggle DevTools',
-                click: () => view.webContents.toggleDevTools(),
             },
             {
                 label: 'Reload',
@@ -211,320 +179,7 @@ function createView(url, appId) {
     return { view, intervalId };
 }
 
-// Wait for a view to be fully loaded and ready
-async function waitForViewReady(view, timeoutMs = 10000) {
-    if (!view || view.webContents.isDestroyed()) {
-        return;
-    }
-
-    // If already loaded, return immediately
-    if (!view.webContents.isLoading()) {
-        // Give it a small delay to ensure rendering is complete
-        await new Promise(resolve => setTimeout(resolve, 100));
-        return;
-    }
-
-    return new Promise((resolve) => {
-        const timeout = setTimeout(() => {
-            resolve();
-        }, timeoutMs);
-
-        const onLoad = () => {
-            clearTimeout(timeout);
-            // Give it a small delay to ensure rendering is complete
-            setTimeout(() => resolve(), 100);
-        };
-
-        view.webContents.once('did-finish-load', onLoad);
-    });
-}
-
-// Animation function for app switching - can be swapped with custom animations
-async function fadeSwitch(fromView, toView) {
-    // Default animation: Fade transition
-    // This function can be replaced with custom animations like slide, zoom, etc.
-
-    if (fromView && !fromView.webContents.isDestroyed()) {
-        // Fade out current view
-        const steps = 10;
-        for (let i = steps; i >= 0; i--) {
-            const opacity = i / steps;
-            try {
-                await fromView.webContents.executeJavaScript(`
-                    document.documentElement.style.opacity = '${opacity}';
-                `);
-            } catch (err) {
-                // View might be destroyed during animation
-                break;
-            }
-            await new Promise(resolve => setTimeout(resolve, 15));
-        }
-    }
-
-    // Short pause between transitions
-    await new Promise(resolve => setTimeout(resolve, 50));
-
-    if (toView && !toView.webContents.isDestroyed()) {
-        // Set starting opacity to 0 and make visible
-        try {
-            await toView.webContents.executeJavaScript(`
-                document.documentElement.style.opacity = '0';
-            `);
-        } catch (err) { }
-
-        // Fade in new view
-        const steps = 10;
-        for (let i = 0; i <= steps; i++) {
-            const opacity = i / steps;
-            try {
-                await toView.webContents.executeJavaScript(`
-                    document.documentElement.style.opacity = '${opacity}';
-                `);
-            } catch (err) {
-                // View might be destroyed during animation
-                break;
-            }
-            await new Promise(resolve => setTimeout(resolve, 15));
-        }
-    }
-}
-
-// Alternative animation examples (commented out - swap with animateAppSwitch to use):
-
-// Slide animation
-async function slideSwitch(fromView, toView) {
-    const bounds = mainWindow.getContentBounds();
-    const sidebarWidth = 65;
-
-    if (fromView && !fromView.webContents.isDestroyed()) {
-        const steps = 15;
-        for (let i = 0; i <= steps; i++) {
-            const offset = (i / steps) * (bounds.width - sidebarWidth);
-            try {
-                await fromView.webContents.executeJavaScript(`
-                    document.documentElement.style.transform = 'translateX(-${offset}px)';
-                `);
-            } catch (err) { break; }
-            await new Promise(resolve => setTimeout(resolve, 10));
-        }
-    }
-
-    if (toView && !toView.webContents.isDestroyed()) {
-        // Set starting position and make visible
-        try {
-            await toView.webContents.executeJavaScript(`
-                document.documentElement.style.opacity = '1';
-                document.documentElement.style.transform = 'translateX(${bounds.width - sidebarWidth}px)';
-            `);
-        } catch (err) { }
-
-        // Animate slide in
-        const steps = 15;
-        for (let i = steps; i >= 0; i--) {
-            const offset = (i / steps) * (bounds.width - sidebarWidth);
-            try {
-                await toView.webContents.executeJavaScript(`
-                    document.documentElement.style.transform = 'translateX(${offset}px)';
-                `);
-            } catch (err) { break; }
-            await new Promise(resolve => setTimeout(resolve, 10));
-        }
-    }
-}
-
-// Zoom animation
-async function zoomSwitch(fromView, toView) {
-    if (fromView && !fromView.webContents.isDestroyed()) {
-        const steps = 12;
-        for (let i = steps; i >= 0; i--) {
-            const scale = 1 - (0.2 * (steps - i) / steps);
-            const opacity = i / steps;
-            try {
-                await fromView.webContents.executeJavaScript(`
-                    document.documentElement.style.transform = 'scale(${scale})';
-                    document.documentElement.style.opacity = '${opacity}';
-                `);
-            } catch (err) { break; }
-            await new Promise(resolve => setTimeout(resolve, 12));
-        }
-    }
-
-    await new Promise(resolve => setTimeout(resolve, 30));
-
-    if (toView && !toView.webContents.isDestroyed()) {
-        // Set starting position and make visible
-        try {
-            await toView.webContents.executeJavaScript(`
-                document.documentElement.style.opacity = '0';
-                document.documentElement.style.transform = 'scale(0.8)';
-            `);
-        } catch (err) { }
-
-        // Animate zoom in
-        const steps = 12;
-        for (let i = 0; i <= steps; i++) {
-            const scale = 0.8 + (0.2 * i / steps);
-            const opacity = i / steps;
-            try {
-                await toView.webContents.executeJavaScript(`
-                    document.documentElement.style.transform = 'scale(${scale})';
-                    document.documentElement.style.opacity = '${opacity}';
-                `);
-            } catch (err) { break; }
-            await new Promise(resolve => setTimeout(resolve, 12));
-        }
-    }
-}
-
-const animateAppSwitch = fadeSwitch; // Change to slideSwitch or zoomSwitch for different animations
-
-
-async function showWebview(appId, url) {
-    if (!mainWindow) {
-        return;
-    }
-
-    // Notify that app is loading
-    if (mainWindow?.webContents) {
-        mainWindow.webContents.send('app-loading', appId, true);
-    }
-
-    // Create webview if it doesn't exist
-    const isNewView = !webviews.has(appId);
-    if (isNewView) {
-        const viewData = createView(url, appId);
-        webviews.set(appId, viewData.view);
-        if (viewData.intervalId) {
-            webviewIntervals.set(appId, viewData.intervalId);
-        }
-    }
-
-    const view = webviews.get(appId);
-    const previousView = currentWebviewId ? webviews.get(currentWebviewId) : null;
-    currentWebviewId = appId;
-
-    // Hide the view initially to prevent flash
-    if (isNewView || view.webContents.isLoading()) {
-        try {
-            await view.webContents.executeJavaScript(`
-                document.documentElement.style.opacity = '0';
-            `);
-        } catch (err) { }
-    }
-
-    // Set the browser view
-    mainWindow.setBrowserView(view);
-    updateViewBounds();
-
-    // Wait for the view to be ready if it's a new view or currently loading
-    if (isNewView || view.webContents.isLoading()) {
-        await waitForViewReady(view);
-    }
-
-    // Notify that app is done loading
-    if (mainWindow?.webContents) {
-        mainWindow.webContents.send('app-loading', appId, false);
-    }
-
-    // Animate the transition
-    animateAppSwitch(previousView, view).catch(() => {
-        // Animation failed, but app still switches
-    });
-
-    // Notify main window about visibility change
-    if (mainWindow?.webContents) {
-        mainWindow.webContents.send('webview-visibility-changed', true, appId);
-        mainWindow.webContents.send('site-changed', appId);
-    }
-}
-
-async function switchToWebview(appId) {
-    if (!mainWindow || !webviews.has(appId)) {
-        return;
-    }
-
-    const view = webviews.get(appId);
-    const previousView = currentWebviewId ? webviews.get(currentWebviewId) : null;
-    currentWebviewId = appId;
-
-    // Notify that app is loading if it's still loading
-    if (view.webContents.isLoading() && mainWindow?.webContents) {
-        mainWindow.webContents.send('app-loading', appId, true);
-    }
-
-    // Switch to this browser view
-    mainWindow.setBrowserView(view);
-    updateViewBounds();
-
-    // Wait for the view to be ready if it's currently loading
-    if (view.webContents.isLoading()) {
-        await waitForViewReady(view);
-
-        // Notify that app is done loading
-        if (mainWindow?.webContents) {
-            mainWindow.webContents.send('app-loading', appId, false);
-        }
-    }
-
-    // Animate the transition
-    animateAppSwitch(previousView, view).catch(() => {
-        // Animation failed, but app still switches
-    });
-
-    // Notify main window about the change
-    if (mainWindow?.webContents) {
-        mainWindow.webContents.send('webview-visibility-changed', true, appId);
-        mainWindow.webContents.send('site-changed', appId);
-    }
-}
-
-function toggleCurrentWebviewDevTools() {
-    if (!mainWindow) {
-        return;
-    }
-
-    // If no webview is open, toggle DevTools for the main window
-    if (!currentWebviewId) {
-        mainWindow.webContents.toggleDevTools();
-        return;
-    }
-
-    const view = webviews.get(currentWebviewId);
-    if (view && !view.webContents.isDestroyed()) {
-        view.webContents.toggleDevTools();
-    }
-}
-
-function closeWebview(appId) {
-    if (!mainWindow) {
-        return;
-    }
-
-    // If this is the currently displayed webview, remove it from display
-    if (currentWebviewId === appId) {
-        mainWindow.setBrowserView(null);
-        currentWebviewId = null;
-    }
-
-    // Clear the interval to prevent memory leaks and errors
-    const intervalId = webviewIntervals.get(appId);
-    if (intervalId) {
-        clearInterval(intervalId);
-        webviewIntervals.delete(appId);
-    }
-
-    // Destroy the webview
-    const view = webviews.get(appId);
-    if (view && !view.webContents.isDestroyed()) {
-        view.webContents.destroy();
-    }
-    webviews.delete(appId);
-
-    // Notify main window
-    if (mainWindow?.webContents) {
-        mainWindow.webContents.send('webview-visibility-changed', false, appId);
-    }
-}
+const animateAppSwitch = fadeSwitch
 
 function createWindow() {
     const windowOptions = {
@@ -568,11 +223,11 @@ function createWindow() {
 
     mainWindow.loadFile(path.join(__dirname, 'index.html'));
 
-    mainWindow.on('resize', updateViewBounds);
-    mainWindow.on('maximize', updateViewBounds);
-    mainWindow.on('unmaximize', updateViewBounds);
-    mainWindow.on('enter-full-screen', updateViewBounds);
-    mainWindow.on('leave-full-screen', updateViewBounds);
+    mainWindow.on('resize', () => updateViewBounds(mainWindow, currentWebviewId, webviews, isFullscreen));
+    mainWindow.on('maximize', () => updateViewBounds(mainWindow, currentWebviewId, webviews, isFullscreen));
+    mainWindow.on('unmaximize', () => updateViewBounds(mainWindow, currentWebviewId, webviews, isFullscreen));
+    mainWindow.on('enter-full-screen', () => updateViewBounds(mainWindow, currentWebviewId, webviews, isFullscreen));
+    mainWindow.on('leave-full-screen', () => updateViewBounds(mainWindow, currentWebviewId, webviews, isFullscreen));
     mainWindow.on('closed', () => {
         // Clean up all intervals
         webviewIntervals.forEach((intervalId) => {
@@ -591,59 +246,7 @@ function createWindow() {
     });
 }
 
-// IPC Handlers
-ipcMain.handle('webview-show', (event, appId, url) => {
-    showWebview(appId, url);
-});
-
-ipcMain.handle('webview-switch', (event, appId) => {
-    switchToWebview(appId);
-});
-
-ipcMain.handle('webview-close', (event, appId) => {
-    closeWebview(appId);
-});
-
-// Listen for fullscreen changes from BrowserViews and relay to main window
-ipcMain.on('browserview-fullscreen-change', (event, fullscreenState) => {
-    isFullscreen = fullscreenState;
-
-    // Update view bounds to expand when fullscreen
-    updateViewBounds();
-
-    // Relay to main window for sidebar hiding
-    if (mainWindow && mainWindow.webContents) {
-        mainWindow.webContents.send('app-fullscreen-change', fullscreenState);
-    }
-});
-
-ipcMain.handle('window-minimize', () => {
-    if (mainWindow) {
-        mainWindow.minimize();
-    }
-});
-
-ipcMain.handle('window-toggle-maximize', () => {
-    if (mainWindow) {
-        if (mainWindow.isMaximized()) {
-            mainWindow.unmaximize();
-        } else {
-            mainWindow.maximize();
-        }
-    }
-});
-
-ipcMain.handle('window-close', () => {
-    if (mainWindow) {
-        mainWindow.close();
-    }
-});
-
-ipcMain.handle('ui-height', (event, height) => {
-    uiTopMargin = Math.max(0, Number(height) || 18);
-    updateViewBounds();
-});
-
+IPCSubscriptions(context)
 
 app.whenReady().then(() => {
     createWindow();
@@ -651,29 +254,24 @@ app.whenReady().then(() => {
     // Register global keyboard shortcuts for developer tools
     // F12 key
     globalShortcut.register('F12', () => {
-        toggleCurrentWebviewDevTools();
+        toggleCurrentWebviewDevTools(mainWindow, currentWebviewId, webviews);
     });
 
     // Ctrl+Shift+I (Windows/Linux) or Cmd+Option+I (Mac)
     const devToolsShortcut = process.platform === 'darwin' ? 'Cmd+Option+I' : 'Ctrl+Shift+I';
     globalShortcut.register(devToolsShortcut, () => {
-        toggleCurrentWebviewDevTools();
+        toggleCurrentWebviewDevTools(mainWindow, currentWebviewId, webviews);
     });
 });
 
 app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') {
-        app.quit();
-    }
+    if (process.platform !== 'darwin') app.quit();
 });
 
 app.on('will-quit', () => {
-    // Unregister all shortcuts
     globalShortcut.unregisterAll();
 });
 
 app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-        createWindow();
-    }
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
 });
