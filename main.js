@@ -2,6 +2,14 @@ const { app, BrowserWindow, BrowserView, ipcMain, Menu, globalShortcut } = requi
 const path = require('path');
 const fs = require('fs');
 
+// Enable hardware acceleration and video codecs for YouTube
+app.commandLine.appendSwitch('enable-features', 'VaapiVideoDecoder,VaapiVideoEncoder,CanvasOopRasterization');
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
+app.commandLine.appendSwitch('disable-software-rasterizer');
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+
 let mainWindow = null;
 let overlayWindow = null;
 let webviews = new Map(); // Store persistent webviews by favoriteId
@@ -65,13 +73,28 @@ function createView(url, appId) {
     // Get mod for this app to check if preload is needed
     const mod = siteMods.get(appId);
 
+    // YouTube-specific configuration to fix loading issues
+    const isYouTube = appId === 'youtube' || appId === 'youtube-music';
+
     const webPreferences = {
-        contextIsolation: false, // Changed to allow fullscreen detection
+        contextIsolation: true, // Use true for better compatibility
         sandbox: false, // Changed to false to allow persistent storage
         nodeIntegration: false,
         partition: `persist:${appId}`, // Each app gets its own persistent partition
-        preload: path.join(__dirname, 'fullscreen-preload.js'), // Always include fullscreen detection
+        webgl: true, // Enable WebGL for YouTube and other sites
+        plugins: true, // Enable plugins
+        webSecurity: true, // Keep web security enabled
+        allowRunningInsecureContent: false,
+        experimentalFeatures: true, // Enable experimental web platform features
+        enableRemoteModule: false,
+        backgroundThrottling: false, // Don't throttle background pages
     };
+
+    // Only add preload if not YouTube (YouTube seems to have issues with the preload)
+    if (!isYouTube) {
+        webPreferences.preload = path.join(__dirname, 'fullscreen-preload.js');
+        webPreferences.contextIsolation = false; // Keep false for other sites that need it
+    }
 
     // Add additional preload if the mod specifies it needs one
     if (mod && mod.preload) {
@@ -85,7 +108,7 @@ function createView(url, appId) {
 
 
     // Set user agent to Chrome to avoid compatibility issues
-    view.webContents.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
+    view.webContents.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
 
     const injectMods = () => {
         if (!mod) return;
