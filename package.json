@@ -1,6 +1,6 @@
 {
   "name": "launchly",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Minimal launcher for web apps with mod support",
   "main": "main.js",
   "scripts": {
