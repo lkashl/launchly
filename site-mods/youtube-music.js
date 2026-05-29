@@ -42,9 +42,5 @@ module.exports = {
             background-color: transparent !important;
             background-image: none !important;
         }
-    `,
-
-    getScriptString: function (css) {
-        return ''
-    }
+    `
 };

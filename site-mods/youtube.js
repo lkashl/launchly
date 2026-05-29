@@ -38,102 +38,97 @@ module.exports = {
         }
     `,
 
-    getScriptString: function (css) {
-        return `(function() {
-            console.log('🎥 YouTube Transparency Mod Starting...');
-            
-            const TRANSPARENT_CSS = ${JSON.stringify(css)};
-            
-            // Function to aggressively remove backgrounds from elements
-            function makeTransparent(element) {
-                if (!element || !element.style) return;
-                
-                // Directly set inline styles to override everything
-                element.style.setProperty('background', 'transparent', 'important');
-                element.style.setProperty('background-color', 'transparent', 'important');
-                element.style.setProperty('background-image', 'none', 'important');
-                element.style.setProperty('box-shadow', 'none', 'important');
-            }
-            
-            // Process all elements
-            function processAllElements(root = document) {
-                try {
-                    const elements = root.querySelectorAll('*');
-                    elements.forEach(el => {
-                        makeTransparent(el);
-                        
-                        // Process shadow roots
-                        if (el.shadowRoot) {
-                            processAllElements(el.shadowRoot);
-                        }
-                    });
-                } catch (e) {
-                    console.error('Error processing elements:', e);
-                }
-            }
-            
-            // Initial processing
-            console.log('🎥 Initial YouTube transparency processing...');
-            makeTransparent(document.documentElement);
-            makeTransparent(document.body);
-            processAllElements();
-            
-            // Create adoptable stylesheet
-            let transparentSheet;
+    getScriptString: (css) => {
+        console.log('🎥 YouTube Transparency Mod Starting...');
+
+        const TRANSPARENT_CSS = css;
+
+        // Function to aggressively remove backgrounds from elements
+        function makeTransparent(element) {
+            if (!element || !element.style) return;
+
+            // Directly set inline styles to override everything
+            element.style.setProperty('background', 'transparent', 'important');
+            element.style.setProperty('background-color', 'transparent', 'important');
+            element.style.setProperty('background-image', 'none', 'important');
+            element.style.setProperty('box-shadow', 'none', 'important');
+        }
+
+        // Process all elements
+        function processAllElements(root = document) {
             try {
-                transparentSheet = new CSSStyleSheet();
-                transparentSheet.replaceSync(TRANSPARENT_CSS);
-                document.adoptedStyleSheets = [transparentSheet, ...document.adoptedStyleSheets];
-                console.log('🎥 Stylesheet adopted successfully');
+                const elements = root.querySelectorAll('*');
+                elements.forEach(el => {
+                    makeTransparent(el);
+
+                    // Process shadow roots
+                    if (el.shadowRoot) {
+                        processAllElements(el.shadowRoot);
+                    }
+                });
             } catch (e) {
-                console.log('🎥 Adoptable stylesheets not supported, using fallback');
-                // Fallback: inject style element
-                const style = document.createElement('style');
-                style.id = 'youtube-transparent';
-                style.textContent = TRANSPARENT_CSS;
-                document.head.appendChild(style);
+                console.error('Error processing elements:', e);
             }
-            
-            // Mutation Observer to handle dynamic content
-            const observer = new MutationObserver((mutations) => {
-                for (const mutation of mutations) {
-                    for (const node of mutation.addedNodes) {
-                        if (node.nodeType === 1) {
-                            makeTransparent(node);
-                            
-                            if (node.shadowRoot) {
-                                processAllElements(node.shadowRoot);
-                            }
-                            
-                            if (node.querySelectorAll) {
-                                const children = node.querySelectorAll('*');
-                                children.forEach(child => {
-                                    makeTransparent(child);
-                                    if (child.shadowRoot) {
-                                        processAllElements(child.shadowRoot);
-                                    }
-                                });
-                            }
+        }
+
+        // Initial processing
+        console.log('🎥 Initial YouTube transparency processing...');
+        makeTransparent(document.documentElement);
+        makeTransparent(document.body);
+        processAllElements();
+
+        // Create adoptable stylesheet
+        let transparentSheet;
+        try {
+            transparentSheet = new CSSStyleSheet();
+            transparentSheet.replaceSync(TRANSPARENT_CSS);
+            document.adoptedStyleSheets = [transparentSheet, ...document.adoptedStyleSheets];
+            console.log('🎥 Stylesheet adopted successfully');
+        } catch (e) {
+            console.log('🎥 Adoptable stylesheets not supported, using fallback');
+            // Fallback: inject style element
+            const style = document.createElement('style');
+            style.id = 'youtube-transparent';
+            style.textContent = TRANSPARENT_CSS;
+            document.head.appendChild(style);
+        }
+
+        // Mutation Observer to handle dynamic content
+        const observer = new MutationObserver((mutations) => {
+            for (const mutation of mutations) {
+                for (const node of mutation.addedNodes) {
+                    if (node.nodeType === 1) {
+                        makeTransparent(node);
+
+                        if (node.shadowRoot) {
+                            processAllElements(node.shadowRoot);
+                        }
+
+                        if (node.querySelectorAll) {
+                            const children = node.querySelectorAll('*');
+                            children.forEach(child => {
+                                makeTransparent(child);
+                                if (child.shadowRoot) {
+                                    processAllElements(child.shadowRoot);
+                                }
+                            });
                         }
                     }
                 }
-            });
-            
-            observer.observe(document.documentElement, {
-                childList: true,
-                subtree: true,
-                attributes: false
-            });
-            
-            // Aggressive periodic processing
-            setInterval(() => {
-                makeTransparent(document.documentElement);
-                makeTransparent(document.body);
-                processAllElements();
-            }, 1000);
-            
-            console.log('🎥 YouTube transparency mod fully loaded and active');
-            
-        })();`;
+            }
+        });
+
+        observer.observe(document.documentElement, {
+            childList: true,
+            subtree: true,
+            attributes: false
+        });
+
+        // Aggressive periodic processing
+        setInterval(() => {
+            makeTransparent(document.documentElement);
+            makeTransparent(document.body);
+            processAllElements();
+        }, 1000);
     }
 };

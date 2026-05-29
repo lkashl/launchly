@@ -1,5 +1,7 @@
 // Animation function for app switching - can be swapped with custom animations
 async function fadeSwitch(fromView, toView) {
+    return;
+
     // Default animation: Fade transition
     // This function can be replaced with custom animations like slide, zoom, etc.
 

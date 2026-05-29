@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('browserAPI', {
+    getSites: () => ipcRenderer.invoke('get-sites'),
     showWebview: (appId, url) => ipcRenderer.invoke('webview-show', appId, url),
     switchToWebview: (appId) => ipcRenderer.invoke('webview-switch', appId),
     closeWebview: (appId) => ipcRenderer.invoke('webview-close', appId),

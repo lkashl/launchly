@@ -1,7 +1,6 @@
 // Discord mod - makes backgrounds transparent
 module.exports = {
     id: 'discord',
-
     css: `
         /* Universal Discord transparency - uses broad selectors to catch all backgrounds */
         html, body {
@@ -52,7 +51,4 @@ module.exports = {
         }
     `,
 
-    getScriptString: function (css) {
-        return ''
-    }
 };

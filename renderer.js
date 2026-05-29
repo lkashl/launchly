@@ -1,54 +1,5 @@
-// Apps configuration using Dashboard Icons (dark theme SVG)
-const apps = [
-    {
-        id: 'home-assistant',
-        name: 'Home Assistant',
-        url: 'http://homeassistant.local:8123/',
-        iconUrl: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/home-assistant.svg'
-    },
-    {
-        id: 'discord',
-        name: 'Discord',
-        url: 'https://discord.com/app',
-        iconUrl: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/discord.svg'
-    },
-    {
-        id: 'whatsapp',
-        name: 'WhatsApp',
-        url: 'https://web.whatsapp.com/',
-        iconUrl: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/whatsapp.svg'
-    },
-    {
-        id: 'reddit',
-        name: 'Reddit',
-        url: 'https://www.reddit.com/',
-        iconUrl: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/reddit.svg'
-    },
-    {
-        id: 'plex',
-        name: 'Plex',
-        url: 'https://app.plex.tv/',
-        iconUrl: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/plex.svg'
-    },
-    {
-        id: 'github',
-        name: 'GitHub',
-        url: 'https://github.com/',
-        iconUrl: 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/github-light.svg'
-    },
-    {
-        id: 'youtube',
-        name: 'YouTube',
-        url: 'https://www.youtube.com/',
-        iconUrl: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/youtube.svg'
-    },
-    {
-        id: 'youtube-music',
-        name: 'YouTube Music',
-        url: 'https://music.youtube.com/',
-        iconUrl: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/youtube-music.svg'
-    },
-];
+// Sites will be loaded from main process via secure IPC
+let sites = [];
 
 const sidebarContainer = document.getElementById('sidebar-container');
 
@@ -56,36 +7,34 @@ const sidebarContainer = document.getElementById('sidebar-container');
 let openApps = new Set();
 let currentAppId = null;
 
-// Render sidebar items
 function renderSidebar() {
     sidebarContainer.innerHTML = '';
 
-    apps.forEach((app) => {
+    sites.forEach((site) => {
         const item = document.createElement('div');
         item.className = 'sidebar-item';
-        item.dataset.id = app.id;
-        item.title = app.name;
+        item.dataset.id = site.id;
+        item.title = site.name;
 
         item.innerHTML = `
-            <div class="sidebar-icon ${app.id}">
-                <img src="${app.iconUrl}" alt="${app.name}" onerror="console.error('Failed to load icon for ${app.name}:', this.src); this.style.display='none'; this.parentElement.textContent='${app.icon || '•'}'" />
+            <div class="sidebar-icon ${site.id}">
+                <img src="${site.iconUrl}" alt="${site.name}" onerror="console.error('Failed to load icon for ${site.name}:', this.src); this.style.display='none'; this.parentElement.textContent='${site.icon || '•'}'" />
             </div>
-            <button class="close-button" title="Close ${app.name}">×</button>
+            <button class="close-button" title="Close ${site.name}">×</button>
         `;
-
 
         const icon = item.querySelector('.sidebar-icon');
         const closeBtn = item.querySelector('.close-button');
 
         // Click on icon to open/switch app
         icon.addEventListener('click', () => {
-            openApp(app.id, app.url);
+            openApp(site.id, site.url);
         });
 
         // Click on close button to close app
         closeBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            closeApp(app.id);
+            closeApp(site.id);
         });
 
         sidebarContainer.appendChild(item);
@@ -110,28 +59,18 @@ function renderSidebar() {
     const maximizeBtn = windowControls.querySelector('.maximize');
     const closeBtn = windowControls.querySelector('.close');
 
-    minimizeBtn.addEventListener('click', () => {
-        window.browserAPI.minimizeWindow();
-    });
-
-    maximizeBtn.addEventListener('click', () => {
-        window.browserAPI.maximizeWindow();
-    });
-
-    closeBtn.addEventListener('click', () => {
-        window.browserAPI.closeWindow();
-    });
+    minimizeBtn.addEventListener('click', window.browserAPI.minimizeWindow);
+    maximizeBtn.addEventListener('click', window.browserAPI.maximizeWindow);
+    closeBtn.addEventListener('click', window.browserAPI.closeWindow);
 
     sidebarContainer.appendChild(windowControls);
 }
 
 // Open or switch to an app
 function openApp(appId, url) {
-    // If this app is already open, just switch to it
     if (openApps.has(appId)) {
         switchToApp(appId);
     } else {
-        // Open new app
         openApps.add(appId);
         window.browserAPI.showWebview(appId, url);
         updateSidebarUI();
@@ -199,22 +138,40 @@ window.browserAPI.onWebviewVisibilityChanged((isVisible, appId) => {
 
 // Listen for app loading state changes
 const loadingIndicator = document.getElementById('loading-indicator');
-window.browserAPI.onAppLoading((appId, isLoading) => {
-    if (isLoading) {
-        loadingIndicator.classList.remove('hidden');
-    } else {
-        loadingIndicator.classList.add('hidden');
-    }
-});
+// window.browserAPI.onAppLoading((appId, isLoading) => {
+//     console.log('App loading event received:', { appId, isLoading });
+//     if (isLoading) {
+//         loadingIndicator.classList.remove('hidden');
+//     } else {
+//         loadingIndicator.classList.add('hidden');
+//     }
+// });
 
-// Initialize
-renderSidebar();
+// Initialize - Load sites from main process then render
+async function initialize() {
+    try {
+        // Fetch sites from main process via secure IPC
+        sites = await window.browserAPI.getSites();
+        console.log('Loaded sites:', sites);
+
+        // Render the sidebar with loaded sites
+        renderSidebar();
+
+        // Update UI height
+        updateUIHeight();
+    } catch (error) {
+        console.error('Failed to load sites:', error);
+    }
+}
 
 // Update UI height (border offset)
 function updateUIHeight() {
     const borderOffset = 18;
     window.browserAPI.updateUIHeight(borderOffset);
 }
+
+// Start initialization when DOM is ready
+initialize();
 
 window.addEventListener('load', updateUIHeight);
 

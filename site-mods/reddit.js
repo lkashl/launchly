@@ -58,8 +58,4 @@ module.exports = {
             background-image: none !important;
         }
     `,
-
-    getScriptString: function (css) {
-        return ''
-    }
 };

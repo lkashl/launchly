@@ -1,8 +1,20 @@
 const { ipcMain } = require('electron');
-const { updateViewBounds, showWebview, switchToWebview, closeWebview } = require('./view');
+const { showWebview, switchToWebview, closeWebview } = require('./view');
+const sites = require('../sites');
 
 const IPCSubscriptions = (context) => {
     const { mainWindow, webviews, webviewIntervals, createView, animateAppSwitch, currentWebviewId, isFullscreen, uiTopMargin } = context;
+
+    // Expose site list to renderer (sanitized - no mods/functions)
+    ipcMain.handle('get-sites', () => {
+        // Return only safe data (no functions or module references)
+        return sites.map(site => ({
+            id: site.id,
+            name: site.name,
+            url: site.url,
+            iconUrl: site.iconUrl
+        }));
+    });
 
     ipcMain.handle('webview-show', (event, appId, url) => {
         showWebview(appId, url, context);
@@ -21,7 +33,7 @@ const IPCSubscriptions = (context) => {
         context.isFullscreen = fullscreenState;
 
         // Update view bounds to expand when fullscreen
-        updateViewBounds(context.mainWindow, context.currentWebviewId, context.webviews, context.isFullscreen);
+        // updateViewBounds(context.mainWindow, context.currentWebviewId, context.webviews, context.isFullscreen);
 
         // Relay to main window for sidebar hiding
         if (context.mainWindow && context.mainWindow.webContents) {
@@ -49,7 +61,7 @@ const IPCSubscriptions = (context) => {
 
     ipcMain.handle('ui-height', (event, height) => {
         context.uiTopMargin = Math.max(0, Number(height) || 18);
-        updateViewBounds(context.mainWindow, context.currentWebviewId, context.webviews, context.isFullscreen);
+        // updateViewBounds(context.mainWindow, context.currentWebviewId, context.webviews, context.isFullscreen);
     });
 
 }

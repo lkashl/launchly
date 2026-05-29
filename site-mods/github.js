@@ -61,7 +61,4 @@ module.exports = {
         }
     `,
 
-    getScriptString: function (css) {
-        return '';
-    }
 };
