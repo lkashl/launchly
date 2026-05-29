@@ -1,11 +1,7 @@
-// Sites will be loaded from main process via secure IPC
+// Provides the core UI logic and interactivity for the application including sidebar and window controls
 let sites = [];
 
 const sidebarContainer = document.getElementById('sidebar-container');
-
-// Track open apps and current active app
-let openApps = new Set();
-let currentAppId = null;
 
 function renderSidebar() {
     sidebarContainer.innerHTML = '';
@@ -26,7 +22,7 @@ function renderSidebar() {
         const icon = item.querySelector('.sidebar-icon');
         const closeBtn = item.querySelector('.close-button');
 
-        // Click on icon to open/switch app
+        // Click on icon to open app
         icon.addEventListener('click', () => {
             openApp(site.id, site.url);
         });
@@ -68,112 +64,68 @@ function renderSidebar() {
 
 // Open or switch to an app
 function openApp(appId, url) {
-    if (openApps.has(appId)) {
-        switchToApp(appId);
-    } else {
-        openApps.add(appId);
-        window.browserAPI.showWebview(appId, url);
-        updateSidebarUI();
-    }
-}
-
-// Switch to an already-open app
-function switchToApp(appId) {
-    if (openApps.has(appId)) {
-        currentAppId = appId;
-        window.browserAPI.switchToWebview(appId);
-        updateSidebarUI();
-    }
+    window.browserAPI.openApp(appId, url);
+    updateSidebarUI();
 }
 
 // Close a specific app
-function closeApp(appId) {
-    if (openApps.has(appId)) {
-        openApps.delete(appId);
-        window.browserAPI.closeWebview(appId);
+async function closeApp(appId) {
+    window.browserAPI.closeApp(appId);
 
-        // If this was the current app, switch to another open app or set to null
-        if (currentAppId === appId) {
-            if (openApps.size > 0) {
-                const lastApp = Array.from(openApps).pop();
-                switchToApp(lastApp);
-            } else {
-                currentAppId = null;
-            }
+    // Get current state from main process
+    const { openApps, currentAppId } = await window.browserAPI.getOpenApps();
+
+    // Default to another open app if there is anything available 
+    if (currentAppId === appId) {
+        if (openApps.length > 0) {
+            const lastApp = openApps[openApps.length - 1];
+            openApp(lastApp);
         }
-
-        updateSidebarUI();
     }
-}
 
-// Close the current app (kept for backwards compatibility)
-function closeCurrentApp() {
-    if (currentAppId) {
-        closeApp(currentAppId);
-    }
+    updateSidebarUI();
 }
 
 // Update sidebar UI to show which apps are open and which is active
-function updateSidebarUI() {
+async function updateSidebarUI() {
+    // Fetch current state from main process
+    const { openApps, currentAppId } = await window.browserAPI.getOpenApps();
+    const openAppsSet = new Set(openApps);
+
     const items = sidebarContainer.querySelectorAll('.sidebar-item');
     items.forEach(item => {
         const appId = item.dataset.id;
-        item.classList.toggle('open', openApps.has(appId));
+        item.classList.toggle('open', openAppsSet.has(appId));
         item.classList.toggle('active', appId === currentAppId);
     });
 }
 
 // Listen for webview visibility changes from main process
 window.browserAPI.onWebviewVisibilityChanged((isVisible, appId) => {
-    if (isVisible) {
-        currentAppId = appId;
-        updateSidebarUI();
-    } else {
-        if (openApps.size === 0) {
-            currentAppId = null;
-        }
-        updateSidebarUI();
-    }
+    updateSidebarUI();
 });
 
 // Listen for app loading state changes
 const loadingIndicator = document.getElementById('loading-indicator');
-// window.browserAPI.onAppLoading((appId, isLoading) => {
-//     console.log('App loading event received:', { appId, isLoading });
-//     if (isLoading) {
-//         loadingIndicator.classList.remove('hidden');
-//     } else {
-//         loadingIndicator.classList.add('hidden');
-//     }
-// });
+window.browserAPI.onAppLoading((appId, isLoading) => {
+    if (isLoading) {
+        loadingIndicator.classList.remove('hidden');
+    } else {
+        loadingIndicator.classList.add('hidden');
+    }
+});
 
 // Initialize - Load sites from main process then render
 async function initialize() {
-    try {
-        // Fetch sites from main process via secure IPC
-        sites = await window.browserAPI.getSites();
-        console.log('Loaded sites:', sites);
-
-        // Render the sidebar with loaded sites
-        renderSidebar();
-
-        // Update UI height
-        updateUIHeight();
-    } catch (error) {
-        console.error('Failed to load sites:', error);
-    }
-}
-
-// Update UI height (border offset)
-function updateUIHeight() {
-    const borderOffset = 18;
-    window.browserAPI.updateUIHeight(borderOffset);
+    // Fetch sites from main process via secure IPC
+    sites = await window.browserAPI.getSites();
+    renderSidebar();
 }
 
 // Start initialization when DOM is ready
 initialize();
 
-window.addEventListener('load', updateUIHeight);
+window.addEventListener('load', window.browserAPI.updateUIHeight);
 
 // Listen for fullscreen changes from apps (BrowserViews)
 window.browserAPI.onAppFullscreenChange((isFullscreen) => {

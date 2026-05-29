@@ -1,9 +1,12 @@
+// The exposed context functions provided as an aggregate list
+// This list is then refined down when exposed in preload hooks to provide narrower privilege levels depending on the context of the renderer (main UI vs site view)
+
 const { ipcMain } = require('electron');
-const { showWebview, switchToWebview, closeWebview } = require('./view');
+const { openApp, closeApp, updateViewBounds } = require('./view');
 const sites = require('../sites');
 
 const IPCSubscriptions = (context) => {
-    const { mainWindow, webviews, webviewIntervals, createView, animateAppSwitch, currentWebviewId, isFullscreen, uiTopMargin } = context;
+    const { mainWindow, webviews, createView, animateAppSwitch, currentWebviewId, isFullscreen } = context;
 
     // Expose site list to renderer (sanitized - no mods/functions)
     ipcMain.handle('get-sites', () => {
@@ -16,16 +19,20 @@ const IPCSubscriptions = (context) => {
         }));
     });
 
-    ipcMain.handle('webview-show', (event, appId, url) => {
-        showWebview(appId, url, context);
+    // Expose open apps state to renderer
+    ipcMain.handle('get-open-apps', () => {
+        return {
+            openApps: Array.from(context.webviews.keys()),
+            currentAppId: context.currentWebviewId
+        };
     });
 
-    ipcMain.handle('webview-switch', (event, appId) => {
-        switchToWebview(appId, context);
+    ipcMain.handle('webview-show', (event, appId, url) => {
+        openApp(appId, url, context);
     });
 
     ipcMain.handle('webview-close', (event, appId) => {
-        closeWebview(appId, context);
+        closeApp(appId, context);
     });
 
     // Listen for fullscreen changes from BrowserViews and relay to main window
@@ -33,12 +40,11 @@ const IPCSubscriptions = (context) => {
         context.isFullscreen = fullscreenState;
 
         // Update view bounds to expand when fullscreen
-        // updateViewBounds(context.mainWindow, context.currentWebviewId, context.webviews, context.isFullscreen);
+        updateViewBounds(context.mainWindow, context.webviews, context.currentWebviewId, context.isFullscreen);
 
         // Relay to main window for sidebar hiding
-        if (context.mainWindow && context.mainWindow.webContents) {
-            context.mainWindow.webContents.send('app-fullscreen-change', fullscreenState);
-        }
+        if (context.mainWindow && context.mainWindow.webContents) context.mainWindow.webContents.send('app-fullscreen-change', fullscreenState);
+
     });
 
     ipcMain.handle('window-minimize', () => {
@@ -60,8 +66,7 @@ const IPCSubscriptions = (context) => {
     });
 
     ipcMain.handle('ui-height', (event, height) => {
-        context.uiTopMargin = Math.max(0, Number(height) || 18);
-        // updateViewBounds(context.mainWindow, context.currentWebviewId, context.webviews, context.isFullscreen);
+        updateViewBounds(context.mainWindow, context.webviews, context.currentWebviewId, context.isFullscreen);
     });
 
 }

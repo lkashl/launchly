@@ -1,32 +1,28 @@
-const { app, BrowserWindow, BrowserView, ipcMain, Menu, globalShortcut } = require('electron');
+const { app, BrowserWindow, WebContentsView, ipcMain, Menu, globalShortcut } = require('electron');
 const { fadeSwitch } = require('./util/animate');
 const { IPCSubscriptions } = require('./util/ipcHandler');
-const { toggleCurrentWebviewDevTools, createView } = require('./util/view');
+const { toggleCurrentWebviewDevTools, createView, updateViewBounds } = require('./util/view');
 
 const path = require('path');
 const fs = require('fs');
 
+// Stores to be shared between render and main process
 let mainWindow = null;
 let overlayWindow = null;
-let webviews = new Map(); // Store persistent webviews by favoriteId
-let webviewIntervals = new Map(); // Store interval IDs for cleanup
+let webviews = new Map();
 let currentWebviewId = null;
-let uiTopMargin = 18; // Border offset
-let isFullscreen = false; // Track fullscreen state
+let isFullscreen = false;
 
-// Create context object to pass to util functions
+// Create context object to share state and functions across modules, latest passed to IPC handler and view functions
 const context = {
     get mainWindow() { return mainWindow; },
     set mainWindow(value) { mainWindow = value; },
     get webviews() { return webviews; },
-    get webviewIntervals() { return webviewIntervals; },
     get currentWebviewId() { return currentWebviewId; },
     set currentWebviewId(value) { currentWebviewId = value; },
-    get uiTopMargin() { return uiTopMargin; },
-    set uiTopMargin(value) { uiTopMargin = value; },
     get isFullscreen() { return isFullscreen; },
     set isFullscreen(value) { isFullscreen = value; },
-    createView: createView,
+    createView: (url, siteId) => createView(url, siteId, mainWindow),
     animateAppSwitch: fadeSwitch
 };
 
@@ -67,6 +63,14 @@ function createWindow() {
     mainWindow = new BrowserWindow(windowOptions);
 
     mainWindow.loadFile(path.join(__dirname, 'index.html'));
+
+
+    // Update view boundaries
+    mainWindow.on('resize', () => updateViewBounds(mainWindow, webviews, currentWebviewId, isFullscreen));
+
+    mainWindow.on('maximize', () => updateViewBounds(mainWindow, webviews, currentWebviewId, isFullscreen));
+
+    mainWindow.on('unmaximize', () => updateViewBounds(mainWindow, webviews, currentWebviewId, isFullscreen));
 }
 
 IPCSubscriptions(context)

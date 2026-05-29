@@ -309,7 +309,7 @@ body.fullscreen .sidebar-container {
 /* Loading Indicator */
 .loading-indicator {
     position: fixed;
-    left: 50%;
+    left: calc(50% + 60px);
     top: 50%;
     transform: translate(-50%, -50%);
     display: flex;

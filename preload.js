@@ -1,10 +1,15 @@
+// Preload for render JS to expose a susbet of IPC handlers functionality
+// Preload is used by renderer.js and is the highest level of privilege the app will provide
+// Other sites should use the preloadFullscreen hook which does not provide this level of privilege access
+
 const { contextBridge, ipcRenderer } = require('electron');
 
+// Create the functions by which context bridge can be accessed in the renderer process, and expose them under the "browserAPI" namespace
 contextBridge.exposeInMainWorld('browserAPI', {
     getSites: () => ipcRenderer.invoke('get-sites'),
-    showWebview: (appId, url) => ipcRenderer.invoke('webview-show', appId, url),
-    switchToWebview: (appId) => ipcRenderer.invoke('webview-switch', appId),
-    closeWebview: (appId) => ipcRenderer.invoke('webview-close', appId),
+    getOpenApps: () => ipcRenderer.invoke('get-open-apps'),
+    openApp: (appId, url) => ipcRenderer.invoke('webview-show', appId, url),
+    closeApp: (appId) => ipcRenderer.invoke('webview-close', appId),
     updateUIHeight: (height) => ipcRenderer.invoke('ui-height', height),
     minimizeWindow: () => ipcRenderer.invoke('window-minimize'),
     maximizeWindow: () => ipcRenderer.invoke('window-toggle-maximize'),

@@ -1,29 +1,78 @@
 const sites = require('../sites');
 const path = require('path');
-const { BrowserView, Menu } = require('electron');
+const { WebContentsView, Menu } = require('electron');
+const { setupNavigationGuard } = require('./csp');
+
+function updateViewBounds(mainWindow, webviews, currentWebviewId, isFullscreen) {
+    if (!mainWindow || !currentWebviewId) return;
+
+    const view = webviews.get(currentWebviewId);
+    if (!view || view.webContents.isDestroyed()) return;
+
+    const bounds = mainWindow.getBounds();
+    const sidebarWidth = 67; // Width of the sidebar
+
+    // Calculate the bounds for the view
+    const viewBounds = {
+        x: isFullscreen ? 0 : sidebarWidth,
+        y: isFullscreen ? 0 : 0,
+        width: isFullscreen ? bounds.width : bounds.width - sidebarWidth,
+        height: isFullscreen ? bounds.height : bounds.height
+    };
+
+    view.setBounds(viewBounds);
+}
 
 // Create the site view
-function createView(url, siteId) {
+function createView(url, siteId, mainWindow) {
     const thisSite = sites.find(site => site.id === siteId);
 
     const webPreferences = {
         contextIsolation: true,
         nodeIntegration: false,
         partition: `persist:${siteId}`,
-        preload: path.join(__dirname, 'sitePreload.js')
+        preload: path.join(__dirname, 'sitePreload.js'),
+        offscreen: false
     };
 
     if (!thisSite) throw new Error('Site is not permitted')
 
-    const view = new BrowserView({
+    const view = new WebContentsView({
         webPreferences: webPreferences,
     });
 
+    // Set transparent background color on the view itself
+    view.setBackgroundColor('rgba(0, 0, 0, 0)');
+
+    // Disable background throttling to ensure transparency works properly
+    view.webContents.setBackgroundThrottling(false);
+
     view.webContents.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
+
+    // Set up navigation guards to restrict to allowed sites only
+    setupNavigationGuard(view.webContents, url);
+
+    // Inject base transparent CSS immediately to prevent white flash
+    const baseTransparentCSS = `
+        html, body {
+            background: transparent !important;
+            background-color: transparent !important;
+        }
+    `;
+
+    // Early injection as soon as DOM starts loading
+    view.webContents.on('did-start-loading', () => {
+        if (!view.webContents.isDestroyed()) {
+            view.webContents.insertCSS(baseTransparentCSS);
+        }
+    });
 
     const injectMods = () => {
         if (view.webContents.isDestroyed()) return;
         const { mods } = thisSite
+
+        // Inject base transparent CSS first
+        view.webContents.insertCSS(baseTransparentCSS);
 
         // Inject CSS if present
         if (mods.css) view.webContents.insertCSS(mods.css);
@@ -58,86 +107,60 @@ function createView(url, siteId) {
         menu.popup({ window: mainWindow });
     });
 
-    // Return both view and intervalId
     return { view };
 }
 
-async function showWebview(appId, url, context) {
-    const { mainWindow, webviews, webviewIntervals, createView, animateAppSwitch, isFullscreen } = context;
+async function openApp(appId, url, context) {
+    const { mainWindow, webviews, animateAppSwitch, isFullscreen } = context;
 
     if (!mainWindow) return;
 
+    const isNew = !webviews.has(appId)
+
     // Create webview if it doesn't exist
-    const isNewView = !webviews.has(appId);
-    if (isNewView) {
-        const viewData = createView(url, appId);
+    if (isNew) {
+        const viewData = createView(url, appId, mainWindow);
         webviews.set(appId, viewData.view);
-        if (viewData.intervalId) {
-            webviewIntervals.set(appId, viewData.intervalId);
+    }
+
+    const view = webviews.get(appId);
+
+    const previousView = context.currentWebviewId ? webviews.get(context.currentWebviewId) : null;
+    context.currentWebviewId = appId;
+
+    if (isNew && mainWindow?.webContents) {
+        mainWindow.webContents.send('app-loading', appId, true);
+    }
+
+    updateViewBounds(mainWindow, webviews, appId, isFullscreen);
+
+    await animateAppSwitch(previousView, null)
+
+    // Set the web contents view
+    // Remove previous view if exists
+    if (previousView && mainWindow.contentView) {
+        try {
+            mainWindow.contentView.removeChildView(previousView);
+        } catch (e) {
+            // View might already be removed
         }
     }
 
-    const view = webviews.get(appId);
-    const needsLoading = false // isNewView || view.webContents.isLoading();
+    // Add the new view
+    if (mainWindow.contentView) {
+        mainWindow.contentView.addChildView(view);
+    }
 
-    if (needsLoading && mainWindow?.webContents) mainWindow.webContents.send('app-loading', appId, true);
-
-    const previousView = context.currentWebviewId ? webviews.get(context.currentWebviewId) : null;
-    context.currentWebviewId = appId;
-
-    // Hide the view initially to prevent flash
-    if (needsLoading) await view.webContents.executeJavaScript(`document.documentElement.style.opacity = '0';`);
-
-    // Set the browser view
-    mainWindow.setBrowserView(view);
-
-    // Wait for the view to be ready if it's a new view or currently loading
-    if (needsLoading) await waitForViewReady(view);
-
-    // Animate the transition
-    await animateAppSwitch(previousView, view)
+    if (isNew) await waitForViewReady(view);
 
     // Notify that app is done loading (after animation completes)
-    if (needsLoading && mainWindow?.webContents) mainWindow.webContents.send('app-loading', appId, false);
+    if (isNew && mainWindow?.webContents) {
+        mainWindow.webContents.send('app-loading', appId, false);
+    }
 
+    if (!isNew) await animateAppSwitch(null, view)
 
     // Notify main window about visibility change
-    if (mainWindow?.webContents) {
-        mainWindow.webContents.send('webview-visibility-changed', true, appId);
-        mainWindow.webContents.send('site-changed', appId);
-    }
-}
-
-async function switchToWebview(appId, context) {
-    const { mainWindow, webviews, animateAppSwitch, isFullscreen } = context;
-
-    if (!mainWindow || !webviews.has(appId)) return;
-
-    const view = webviews.get(appId);
-    const previousView = context.currentWebviewId ? webviews.get(context.currentWebviewId) : null;
-    context.currentWebviewId = appId;
-
-    // Track if we need to dismiss loading indicator
-    const wasLoading = view.webContents.isLoading();
-
-    // Notify that app is loading if it's still loading
-    if (wasLoading && mainWindow?.webContents) mainWindow.webContents.send('app-loading', appId, true);
-
-
-    // Switch to this browser view
-    mainWindow.setBrowserView(view);
-
-    // Wait for the view to be ready if it's currently loading
-    if (wasLoading) await waitForViewReady(view);
-
-    // Animate the transition
-    await animateAppSwitch(previousView, view)
-
-    // Notify that app is done loading (after animation completes)
-    if (wasLoading && mainWindow?.webContents) mainWindow.webContents.send('app-loading', appId, false);
-
-
-    // Notify main window about the change
     if (mainWindow?.webContents) {
         mainWindow.webContents.send('webview-visibility-changed', true, appId);
         mainWindow.webContents.send('site-changed', appId);
@@ -162,32 +185,30 @@ function toggleCurrentWebviewDevTools(mainWindow, currentWebviewId, webviews) {
     }
 }
 
-function closeWebview(appId, context) {
-    const { mainWindow, webviews, webviewIntervals } = context;
+function closeApp(appId, context) {
+    const { mainWindow, webviews } = context;
 
     if (!mainWindow) return;
 
     // If this is the currently displayed webview, remove it from display
     if (context.currentWebviewId === appId) {
-        mainWindow.setBrowserView(null);
+        const view = webviews.get(appId);
+        if (view && mainWindow.contentView) {
+            try {
+                mainWindow.contentView.removeChildView(view);
+            } catch (e) {
+                // View might already be removed
+            }
+        }
         context.currentWebviewId = null;
-    }
-
-    // Clear the interval to prevent memory leaks and errors
-    const intervalId = webviewIntervals.get(appId);
-    if (intervalId) {
-        clearInterval(intervalId);
-        webviewIntervals.delete(appId);
     }
 
     // Destroy the webview
     const view = webviews.get(appId);
-    if (view && !view.webContents.isDestroyed()) {
-        view.webContents.destroy();
-    }
+    if (view && !view.webContents.isDestroyed()) view.webContents.destroy();
+
     webviews.delete(appId);
 
-    // Notify main window
     if (mainWindow?.webContents) mainWindow.webContents.send('webview-visibility-changed', false, appId);
 }
 
@@ -217,10 +238,10 @@ async function waitForViewReady(view, timeoutMs = 10000) {
 }
 
 module.exports = {
-    showWebview,
-    switchToWebview,
-    closeWebview,
+    openApp,
+    closeApp,
     toggleCurrentWebviewDevTools,
     waitForViewReady,
-    createView
+    createView,
+    updateViewBounds
 }
