@@ -42,7 +42,7 @@ function createWindow() {
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,
-            nodeIntegration: false,
+            nodeIntegration: false
         },
     };
 
@@ -64,6 +64,10 @@ function createWindow() {
 
     mainWindow.loadFile(path.join(__dirname, 'index.html'));
 
+    // Log console messages from main window
+    mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+        console.log(`[Main Window] ${message}`);
+    });
 
     // Update view boundaries
     mainWindow.on('resize', () => updateViewBounds(mainWindow, webviews, currentWebviewId, isFullscreen));
