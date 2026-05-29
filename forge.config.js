@@ -4,6 +4,9 @@ const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 module.exports = {
   packagerConfig: {
     asar: true,
+    // Use app name and version in output directory
+    name: 'Launchly',
+    executableName: 'launchly',
   },
   rebuildConfig: {},
   makers: [
