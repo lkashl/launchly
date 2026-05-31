@@ -75,6 +75,25 @@ function createWindow() {
     mainWindow.on('maximize', () => updateViewBounds(mainWindow, webviews, currentWebviewId, isFullscreen));
 
     mainWindow.on('unmaximize', () => updateViewBounds(mainWindow, webviews, currentWebviewId, isFullscreen));
+
+    // Clean up when window is closed
+    mainWindow.on('closed', () => {
+        // Remove all child views
+        webviews.forEach((view, appId) => {
+            try {
+                if (mainWindow && mainWindow.contentView) {
+                    mainWindow.contentView.removeChildView(view);
+                }
+                if (view && !view.webContents.isDestroyed()) {
+                    view.webContents.destroy();
+                }
+            } catch (e) {
+                console.error(`Error cleaning up view ${appId}:`, e);
+            }
+        });
+        webviews.clear();
+        mainWindow = null;
+    });
 }
 
 IPCSubscriptions(context)
@@ -94,7 +113,25 @@ app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit();
 });
 
-app.on('will-quit', () => globalShortcut.unregisterAll);
+app.on('before-quit', () => {
+    // Clean up all webviews before quitting
+    webviews.forEach((view, appId) => {
+        try {
+            if (view && !view.webContents.isDestroyed()) {
+                view.webContents.destroy();
+            }
+        } catch (e) {
+            console.error(`Error destroying view ${appId}:`, e);
+        }
+    });
+    webviews.clear();
+
+    // Unregister all global shortcuts
+    globalShortcut.unregisterAll();
+
+    // Remove all IPC handlers
+    ipcMain.removeAllListeners();
+});
 
 app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

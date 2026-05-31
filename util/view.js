@@ -190,9 +190,11 @@ function closeApp(appId, context) {
 
     if (!mainWindow) return;
 
+    const view = webviews.get(appId);
+    if (!view) return;
+
     // If this is the currently displayed webview, remove it from display
     if (context.currentWebviewId === appId) {
-        const view = webviews.get(appId);
         if (view && mainWindow.contentView) {
             try {
                 mainWindow.contentView.removeChildView(view);
@@ -203,13 +205,21 @@ function closeApp(appId, context) {
         context.currentWebviewId = null;
     }
 
-    // Destroy the webview
-    const view = webviews.get(appId);
-    if (view && !view.webContents.isDestroyed()) view.webContents.destroy();
+    // Remove all event listeners before destroying
+    if (view && !view.webContents.isDestroyed()) {
+        try {
+            view.webContents.removeAllListeners();
+            view.webContents.destroy();
+        } catch (e) {
+            console.error(`Error destroying view ${appId}:`, e);
+        }
+    }
 
     webviews.delete(appId);
 
-    if (mainWindow?.webContents) mainWindow.webContents.send('webview-visibility-changed', false, appId);
+    if (mainWindow?.webContents && !mainWindow.webContents.isDestroyed()) {
+        mainWindow.webContents.send('webview-visibility-changed', false, appId);
+    }
 }
 
 // Wait for a view to be fully loaded and ready
