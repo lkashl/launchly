@@ -38,7 +38,7 @@ module.exports = {
         }
     `,
 
-    getScriptString: (css) => {
+    getScript: (css) => {
         console.log('🎥 YouTube Transparency Mod Starting...');
 
         const TRANSPARENT_CSS = css;

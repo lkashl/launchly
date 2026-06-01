@@ -78,8 +78,8 @@ function createView(url, siteId, mainWindow) {
         if (mods.css) view.webContents.insertCSS(mods.css);
 
         // Inject script if present
-        if (mods.getScriptString) {
-            let script = mods.getScriptString.toString();
+        if (mods.getScript) {
+            let script = mods.getScript.toString();
             if (!script.startsWith('(css) =>')) return console.error('script signature incorrect ' + mods.id)
             script = `(${script})(${JSON.stringify(mods.css)})`;
 

@@ -24,7 +24,7 @@ let document;
 module.exports = {
     id: 'home-assistant',
     css,
-    getScriptString: (css) => {
+    getScript: (css) => {
         const TRANSPARENT_CSS = css;
 
         // Create adoptable stylesheet (much more efficient than creating style elements)

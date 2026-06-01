@@ -24,6 +24,9 @@
     "productName": "Launchly",
     "executableName": "launchly",
     "asar": true,
+    "asarUnpack": [
+      "sites.json"
+    ],
     "files": [
       "**/*",
       "!**/*.tmp",

@@ -9,7 +9,7 @@ module.exports = {
         }
     `,
 
-    getScriptString: (css) => {
+    getScript: (css) => {
         // Remove Plex background elements
         function removePlexBackground() {
             const elements = document.querySelectorAll('[class*="FullPageBackground-backgroundContainer"]');

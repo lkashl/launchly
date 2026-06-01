@@ -13,6 +13,23 @@ This app uses electron and electron forge for packaging. Context isolation is en
 
 ## FAQ
 
+### How do I customize the sites list?
+
+The `sites.json` file is unpacked from the application bundle and can be customized. After installation, you can find it at:
+
+- **Windows**: `resources/app.asar.unpacked/sites.json` (in the installation directory)
+- **macOS**: `Launchly.app/Contents/Resources/app.asar.unpacked/sites.json`
+- **Linux**: `resources/app.asar.unpacked/sites.json` (in the installation directory)
+
+Edit this file to remove or modify sites. Each site entry should include:
+```json
+{
+    "id": "site-id",
+    "name": "Display Name",
+    "url": "https://example.com/",
+    "iconUrl": "https://example.com/icon.svg"
+}
+
 ### How do I drag the window?
 
 You can use the app bar (the bar which displays all apps) to drag the window around
@@ -35,12 +52,10 @@ site-mods:
 
 ```javascript
 module.exports = {
-    // Soon to be depracated - redundant
-    id: 'id of the application - same as file name',
     // Static CSS that will be appended to the DOM
     css: `css defined as string`,
     // Return a function with flexibility to modify dom as javascript
-    getScriptString: (css)=>{}
+    getScript: (css)=>{}
 }
 ```
 
@@ -50,9 +65,7 @@ sites.js
     id: 'same as file name',
     name: 'Human readible name',
     url: 'Fully qualified url',
-    icon: 'Fully qualifiied icon destination',
-    // Soon to be depracated:
-    mods: require('relative file path;)
+    icon: 'Fully qualifiied icon destination'
 }
 
 ```

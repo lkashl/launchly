@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld('browserAPI', {
     closeWindow: () => ipcRenderer.invoke('window-close'),
     minimizeWebviewWindow: () => ipcRenderer.invoke('window-minimize'),
     toggleMaximizeWebviewWindow: () => ipcRenderer.invoke('window-toggle-maximize'),
+    getUserConfig: () => ipcRenderer.invoke('get-user-config'),
+    saveUserConfig: (config) => ipcRenderer.invoke('save-user-config', config),
     onWebviewVisibilityChanged: (callback) => ipcRenderer.on('webview-visibility-changed', (event, isVisible, appId) => callback(isVisible, appId)),
     onSiteChanged: (callback) => ipcRenderer.on('site-changed', (event, siteId) => callback(siteId)),
     onAppLoading: (callback) => ipcRenderer.on('app-loading', (event, appId, isLoading) => callback(appId, isLoading)),

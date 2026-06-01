@@ -50,6 +50,16 @@ body.fullscreen .app-background-overlay {
     -webkit-app-region: drag;
     box-shadow: 2px 0 20px rgba(0, 0, 0, 0.6);
     transition: transform 0.3s ease, opacity 0.3s ease;
+    pointer-events: auto;
+}
+
+/*
+ * During app reordering, make the full sidebar an HTML drop surface.
+ * Without this, Windows/Electron can treat gaps between icons as native
+ * window-drag regions and show the red "not allowed" drag cursor.
+ */
+.sidebar-container.reordering {
+    -webkit-app-region: no-drag;
 }
 
 /* Hide sidebar when in fullscreen */
@@ -71,6 +81,80 @@ body.fullscreen .sidebar-container {
 
 .sidebar-item:hover {
     transform: scale(1.1);
+}
+
+/* Drag and Drop States */
+.sidebar-item.dragging {
+    opacity: 0.4;
+    transform: scale(0.85) rotate(5deg);
+    cursor: grabbing;
+    transition: all 0.2s ease;
+}
+
+.sidebar-item.dragging .sidebar-icon {
+    box-shadow: 0 8px 24px rgba(255, 255, 255, 0.2);
+}
+
+.sidebar-item.drag-over {
+    transition: transform 0.15s ease;
+}
+
+.sidebar-item.drag-over.insert-before::before,
+.sidebar-item.drag-over.insert-after::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    width: 42px;
+    height: 3px;
+    border-radius: 999px;
+    background: var(--drag-insert-color, rgba(147, 51, 234, 0.95));
+    box-shadow: 0 0 12px var(--drag-insert-color, rgba(147, 51, 234, 0.7));
+    transform: translateX(-50%);
+    z-index: 20;
+    pointer-events: none;
+}
+
+.sidebar-item.drag-over.insert-before::before {
+    top: -7.5px;
+}
+
+.sidebar-item.drag-over.insert-after::before {
+    bottom: -7.5px;
+}
+
+/* Cursor for draggable items */
+.sidebar-item:not(.vacant) {
+    cursor: grab;
+}
+
+.sidebar-item:not(.vacant):active {
+    cursor: grabbing;
+}
+
+/* Custom drag preview styling */
+.drag-preview {
+    pointer-events: none;
+}
+
+/* Item shifting animations during drag */
+.sidebar-item.shift-up {
+    transform: translateY(-57px) !important;
+    transition: transform 0.25s ease;
+}
+
+.sidebar-item.shift-down {
+    transform: translateY(57px) !important;
+    transition: transform 0.25s ease;
+}
+
+
+/* Vacant slot styling */
+.sidebar-item.vacant {
+    opacity: 0.6;
+}
+
+.sidebar-item.vacant:hover {
+    opacity: 1;
 }
 
 /* Close button for open apps */
@@ -97,6 +181,60 @@ body.fullscreen .sidebar-container {
     padding: 0;
     z-index: 10;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    pointer-events: auto;
+}
+
+/* Disable pointer events on buttons during drag */
+.sidebar-item.dragging .close-button,
+.sidebar-item.dragging .remove-button {
+    pointer-events: none;
+}
+
+/* Remove button (shown on hover for non-open apps) */
+.remove-button {
+    position: absolute;
+    top: -6px;
+    left: -6px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgba(100, 100, 120, 0.9);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    font-size: 18px;
+    font-weight: bold;
+    line-height: 1;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0;
+    z-index: 10;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    pointer-events: auto;
+}
+
+.remove-button:hover {
+    background: rgba(80, 80, 100, 1);
+    transform: scale(1.15);
+    box-shadow: 0 4px 12px rgba(100, 100, 120, 0.6);
+}
+
+.remove-button:active {
+    transform: scale(0.95);
+}
+
+/* Show remove button on hover for non-open apps */
+.sidebar-item:hover .remove-button {
+    display: flex;
+}
+
+/* Hide remove button when app is open (close button takes priority) */
+.sidebar-item.open .remove-button {
+    display: none;
 }
 
 .close-button:hover {
@@ -140,11 +278,13 @@ body.fullscreen .sidebar-container {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
+    pointer-events: none;
 }
 
 .sidebar-icon i {
     font-size: 24px;
     color: rgba(255, 255, 255, 0.9);
+    pointer-events: none;
 }
 
 .sidebar-item:hover .sidebar-icon {
@@ -304,6 +444,97 @@ body.fullscreen .sidebar-container {
 .sidebar-icon.home-assistant img {
     width: 60%;
     height: 60%;
+}
+
+/* Vacant icon styling */
+.vacant-icon {
+    background: linear-gradient(135deg, rgba(100, 100, 120, 0.2), rgba(80, 80, 100, 0.2)) !important;
+    border: 2px dashed rgba(255, 255, 255, 0.15) !important;
+    box-shadow: 0 4px 16px rgba(100, 100, 120, 0.15) !important;
+}
+
+.sidebar-item:hover .vacant-icon {
+    background: linear-gradient(135deg, rgba(100, 100, 120, 0.3), rgba(80, 80, 100, 0.3)) !important;
+    border-color: rgba(255, 255, 255, 0.3) !important;
+    box-shadow: 0 6px 24px rgba(100, 100, 120, 0.3) !important;
+}
+
+.plus-icon {
+    font-size: 28px;
+    color: rgba(255, 255, 255, 0.5);
+    font-weight: 200;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: -2px;
+    left: 0;
+    transform-origin: center calc(50% + 2px);
+}
+
+.sidebar-item:hover .plus-icon {
+    color: rgba(255, 255, 255, 0.9);
+    transform: rotate(90deg);
+}
+
+/* Restore Menu */
+.restore-menu {
+    position: fixed;
+    background: rgba(15, 15, 25, 0.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    padding: 8px;
+    min-width: 200px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    z-index: 10002;
+    animation: menuFadeIn 0.15s ease-out;
+}
+
+@keyframes menuFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.restore-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.restore-menu-item:hover {
+    background: rgba(147, 51, 234, 0.2);
+    transform: translateX(3px);
+}
+
+.restore-menu-icon {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+
+.restore-menu-name {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 14px;
+    font-weight: 500;
 }
 
 /* Loading Indicator */

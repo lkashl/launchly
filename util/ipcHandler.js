@@ -4,6 +4,8 @@
 const { ipcMain } = require('electron');
 const { openApp, closeApp, updateViewBounds } = require('./view');
 const sites = require('../sites');
+const fs = require('fs');
+const path = require('path');
 
 const IPCSubscriptions = (context) => {
     const { mainWindow, webviews, createView, animateAppSwitch, currentWebviewId, isFullscreen } = context;
@@ -67,6 +69,32 @@ const IPCSubscriptions = (context) => {
 
     ipcMain.handle('ui-height', (event, height) => {
         updateViewBounds(context.mainWindow, context.webviews, context.currentWebviewId, context.isFullscreen);
+    });
+
+    // User configuration management
+    const configPath = path.join(__dirname, '..', 'user-config.json');
+
+    ipcMain.handle('get-user-config', () => {
+        try {
+            if (fs.existsSync(configPath)) {
+                const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+                return config;
+            }
+            return { removedApps: [], appOrder: [] };
+        } catch (error) {
+            console.error('Error reading user config:', error);
+            return { removedApps: [], appOrder: [] };
+        }
+    });
+
+    ipcMain.handle('save-user-config', (event, config) => {
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
+            return { success: true };
+        } catch (error) {
+            console.error('Error saving user config:', error);
+            return { success: false, error: error.message };
+        }
     });
 
 }
