@@ -17,7 +17,8 @@ const IPCSubscriptions = (context) => {
             id: site.id,
             name: site.name,
             url: site.url,
-            iconUrl: site.iconUrl
+            iconUrl: site.iconUrl,
+            themeColor: site.themeColor
         }));
     });
 

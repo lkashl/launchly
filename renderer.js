@@ -402,8 +402,28 @@ async function updateSidebarUI() {
     items.forEach(item => {
         const appId = item.dataset.id;
         if (appId) {
-            item.classList.toggle('open', openAppsSet.has(appId));
-            item.classList.toggle('active', appId === currentAppId);
+            const isOpen = openAppsSet.has(appId);
+            const isActive = appId === currentAppId;
+            const site = sites.find(s => s.id === appId);
+            const themeColor = site?.themeColor || 'rgba(147, 51, 234, 0.9)';
+
+            item.classList.toggle('open', isOpen);
+            item.classList.toggle('active', isActive);
+
+            // Set the active color CSS custom property based on the app's theme
+            if (isActive) {
+                item.style.setProperty('--active-color', themeColor);
+                item.style.removeProperty('--muted-color');
+            } else if (isOpen) {
+                // Open but not active: use a muted/transparent version of the theme color
+                // Reduce alpha from 0.9 to ~0.35 for a subdued look
+                const mutedColor = themeColor.replace(/[\d.]+\)$/, '0.35)');
+                item.style.setProperty('--muted-color', mutedColor);
+                item.style.removeProperty('--active-color');
+            } else {
+                item.style.removeProperty('--active-color');
+                item.style.removeProperty('--muted-color');
+            }
         }
     });
 }

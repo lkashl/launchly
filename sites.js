@@ -9,6 +9,7 @@ const sites = JSON.parse(fs.readFileSync(sitesPath, 'utf8'));
 
 sites.forEach(site => {
     site.mods = require(`./site-mods/${site.id}.js`)
+    site.themeColor = site.themeColor
 })
 
 module.exports = sites

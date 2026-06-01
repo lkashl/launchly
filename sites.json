@@ -3,60 +3,70 @@
         "id": "home-assistant",
         "name": "Home Assistant",
         "url": "http://homeassistant.local:8123/",
-        "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/home-assistant.svg"
+        "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/home-assistant.svg",
+        "themeColor": "rgba(65, 155, 249, 0.9)"
     },
     {
         "id": "discord",
         "name": "Discord",
         "url": "https://discord.com/app",
-        "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/discord.svg"
+        "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/discord.svg",
+        "themeColor": "rgba(88, 101, 242, 0.9)"
     },
     {
         "id": "whatsapp",
         "name": "WhatsApp",
         "url": "https://web.whatsapp.com/",
-        "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/whatsapp.svg"
+        "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/whatsapp.svg",
+        "themeColor": "rgba(37, 211, 102, 0.9)"
     },
     {
         "id": "reddit",
         "name": "Reddit",
         "url": "https://www.reddit.com/",
-        "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/reddit.svg"
+        "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/reddit.svg",
+        "themeColor": "rgba(255, 69, 0, 0.9)"
     },
     {
         "id": "plex",
         "name": "Plex",
         "url": "https://app.plex.tv/",
-        "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/plex.svg"
+        "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/plex.svg",
+        "themeColor": "rgba(229, 160, 13, 0.9)"
     },
     {
         "id": "github",
         "name": "GitHub",
         "url": "https://github.com/",
-        "iconUrl": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/github-light.svg"
+        "iconUrl": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/github-light.svg",
+        "themeColor": "rgba(36, 41, 46, 0.9)"
     },
     {
         "id": "youtube",
         "name": "YouTube",
         "url": "https://www.youtube.com/",
-        "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/youtube.svg"
+        "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/youtube.svg",
+        "themeColor": "rgba(255, 0, 0, 0.9)"
     },
     {
         "id": "youtube-music",
         "name": "YouTube Music",
         "url": "https://music.youtube.com/",
-        "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/youtube-music.svg"
+        "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/youtube-music.svg",
+        "themeColor": "rgba(255, 0, 0, 0.9)"
     },
     {
         "id": "chatgpt",
         "name": "ChatGPT",
         "url": "https://chatgpt.com/",
-        "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/openai.svg"
+        "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/openai.svg",
+        "themeColor": "rgba(16, 163, 127, 0.9)"
     },
     {
         "id": "claude",
         "name": "Claude",
         "url": "https://claude.ai/",
-        "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/anthropic.svg"
+        "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/anthropic.svg",
+        "themeColor": "rgba(217, 119, 87, 0.9)"
     }
 ]

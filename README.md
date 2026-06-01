@@ -29,6 +29,7 @@ Edit this file to remove or modify sites. Each site entry should include:
     "url": "https://example.com/",
     "iconUrl": "https://example.com/icon.svg"
 }
+```
 
 ### How do I drag the window?
 
