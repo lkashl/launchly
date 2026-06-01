@@ -1,10 +1,9 @@
-const { app, BrowserWindow, WebContentsView, ipcMain, Menu, globalShortcut } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
 const { fadeSwitch } = require('./util/animate');
 const { IPCSubscriptions } = require('./util/ipcHandler');
-const { toggleCurrentWebviewDevTools, createView, updateViewBounds } = require('./util/view');
+const { createView, updateViewBounds } = require('./util/view');
 
 const path = require('path');
-const fs = require('fs');
 
 // Stores to be shared between render and main process
 let mainWindow = null;
@@ -76,6 +75,19 @@ function createWindow() {
 
     mainWindow.on('unmaximize', () => updateViewBounds(mainWindow, webviews, currentWebviewId, isFullscreen));
 
+    // Keyboard shortcuts for main window DevTools (only active when app window is focused)
+    mainWindow.webContents.on('before-input-event', (event, input) => {
+        if (input.type !== 'keyDown') return;
+
+        const isDevToolsKey = input.key === 'F12' ||
+            ((input.control || input.meta) && input.shift && input.key === 'I');
+
+        if (isDevToolsKey) {
+            mainWindow.webContents.toggleDevTools();
+            event.preventDefault();
+        }
+    });
+
     // Clean up when window is closed
     mainWindow.on('closed', () => {
         // Remove all child views
@@ -101,12 +113,6 @@ IPCSubscriptions(context)
 app.whenReady()
     .then(() => {
         createWindow();
-
-        // Bind to developer tools
-        globalShortcut.register('F12', () => toggleCurrentWebviewDevTools(mainWindow, currentWebviewId, webviews))
-
-        const devToolsShortcut = process.platform === 'darwin' ? 'Cmd+Option+I' : 'Ctrl+Shift+I';
-        globalShortcut.register(devToolsShortcut, () => toggleCurrentWebviewDevTools(mainWindow, currentWebviewId, webviews));
     });
 
 app.on('window-all-closed', () => {
@@ -125,9 +131,6 @@ app.on('before-quit', () => {
         }
     });
     webviews.clear();
-
-    // Unregister all global shortcuts
-    globalShortcut.unregisterAll();
 
     // Remove all IPC handlers
     ipcMain.removeAllListeners();

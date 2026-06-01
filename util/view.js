@@ -93,6 +93,19 @@ function createView(url, siteId, mainWindow) {
     view.webContents.on('dom-ready', injectMods);
     view.webContents.on('did-navigate', injectMods);
 
+    // Keyboard shortcuts for this site's DevTools (only active when this view has focus, not global)
+    view.webContents.on('before-input-event', (event, input) => {
+        if (input.type !== 'keyDown') return;
+
+        const isDevToolsKey = input.key === 'F12' ||
+            ((input.control || input.meta) && input.shift && input.key === 'I');
+
+        if (isDevToolsKey && !view.webContents.isDestroyed()) {
+            view.webContents.toggleDevTools();
+            event.preventDefault();
+        }
+    });
+
     view.webContents.on('context-menu', (event, params) => {
         const menu = Menu.buildFromTemplate([
             {
